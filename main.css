@@ -1,3 +1,136 @@
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed,
+figure, figcaption, footer, header, hgroup,
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline;
+}
+*:focus {
+    outline:none;
+}
+
+@font-face {
+    font-family: montserrat;
+    src: url("res/Montserrat.ttf");
+}
+
+:root {
+    --bg-color:#121212;
+    --nav-bg:#0c0c0c;
+    --font-color:white;
+    --dis-font-color:#c7c7c7;
+    --inp-bg:#202020;
+}
+
+[data-theme="light"] {
+    --bg-color:white;
+    --nav-bg:#e7e7e7;
+    --font-color:black;
+    --dis-font-color:#474747;
+    --inp-bg:white;
+}
+
 body {
-    
+    background-color: var(--bg-color);
+    font-family: montserrat;
+    width: 100vw;
+    overflow-x: hidden;
+}
+
+nav {
+    width:100%;
+    max-width: 100%;
+    overflow: hidden;
+    margin:0;
+    padding:0;
+    min-height:50px;
+    background-color: var(--nav-bg);
+
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-content: flex-start;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+nav button {
+    background-color: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--font-color);
+    padding: 1.2rem .6rem;
+    margin: 0 5px;
+    transition: all .2s ease-in-out;
+}
+nav button:hover {
+    color:var(--dis-font-color);
+}
+
+nav #logo {
+    height: 4rem;
+    position: absolute;
+    left: 10px;
+}
+
+nav .mode_bt {
+    position: absolute;
+    right: 1.2rem;
+    font-size: 2.2rem;
+    color: var(--font-color);
+    padding: .9rem 0;
+    cursor: pointer;
+
+    rotate: 90deg;
+    opacity: 0;
+    pointer-events: none;
+    transition: all .2s ease-in-out;
+}
+nav .mode_bt.active {
+    opacity: 1;
+    rotate: 0deg;
+    pointer-events: all;
+}
+
+.searchbar {
+    position: fixed;
+    left: 50%;
+    top: 5rem;
+    translate: -50% 0;
+}
+.searchbar input {
+    border: solid 1px #434343;
+    background-color: var(--inp-bg);
+    color: var(--font-color);
+    font-size: 1.3rem;
+    border-radius: 50rem;
+    padding: 10px 10px;
+    padding-left: 45px;
+}
+.searchbar i {
+    position: absolute;
+    left: 14px;
+    color: var(--font-color);
+    font-size: 1.3rem;
+    top: 14px;
+}
+#novel_search {
+    display: none;
+}
+#novel_search.active {
+    display: block;
 }

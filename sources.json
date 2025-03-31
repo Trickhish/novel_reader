@@ -1,0 +1,15 @@
+{
+    "lightnovelworld.co": {
+        "search": {
+            "endpoint": ""
+        }
+    },
+    "lightnovelworld.com": {
+        "search": {
+            "endpoint": "/lnsearchlive",
+            "type": "POST",
+            "payload": "{'inputContent':<query>}",
+            "result": "resultview"
+        }
+    }
+}
