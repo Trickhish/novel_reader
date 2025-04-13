@@ -1,15 +1,29 @@
 {
-    "lightnovelworld.co": {
+    "NatoManga": {
+        "baseUrl": "https://www.natomanga.com",
         "search": {
-            "endpoint": ""
+            "endpoint": "/home/search/json",
+            "type": "GET",
+            "payload": {"searchword":"$query"},
+            "query_key": "searchword"
         }
     },
+
     "lightnovelworld.com": {
+        "baseUrl": "https://www.lightnovelworld.com",
         "search": {
             "endpoint": "/lnsearchlive",
             "type": "POST",
-            "payload": "{'inputContent':<query>}",
-            "result": "resultview"
+            "payload": {"inputContent":"$query"},
+            "result": "resultview",
+            "query_key": "inputContent"
+        }
+    },
+
+    "lightnovelworld.co": {
+        "baseUrl": "https://www.lightnovelworld.co",
+        "search": {
+            "endpoint": ""
         }
     }
 }
