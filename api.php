@@ -59,6 +59,8 @@ function fgc($url, $method="GET", $hd=[], $p=[]) {
 }
 
 function pfgc($url, $method="GET", $hd=[], $p=[]) {
+    global $dbg;
+
     $phd = [
         "Content-Type: application/json"
     ];
@@ -92,9 +94,19 @@ function pfgc($url, $method="GET", $hd=[], $p=[]) {
     [$r, $rh] = fgc("http://localhost:8191/v1", "POST", $phd, json_encode($pp));
 
     $r = json_decode($r, true);
+    
+    $sts = $r["status"];
 
-    $r = $r["solution"]; // response, headers, cookies, status
-    return([$r["response"], $r["headers"]]);
+    if (array_key_exists("solution", $r)) {
+        $r = $r["solution"]; // response, headers, cookies, status
+        return([$r["response"], $r["headers"]]);
+    } else {
+        if ($dbg) {
+            $msg = $r["message"];
+            echo("There is no solution in the response from flaresolverr: ".implode(",", array_keys($r))."<br/>".$msg."<br/>");
+        }
+        return([false, false]);
+    }
 }
 
 function gzd( $data ){
@@ -281,14 +293,20 @@ function disp() {
 
 
 
-function getSearchProviders() {
+function getMangaSearchProviders() {
     $sources = file_get_contents("sources.json");
 
-    return(json_decode($sources, true));
+    return(json_decode($sources, true)["mangas"]);
 }
 
-function search($q, $pvdn) {
-    $sources = getSearchProviders();
+function getNovelSearchProviders() {
+    $sources = file_get_contents("sources.json");
+
+    return(json_decode($sources, true)["novels"]);
+}
+
+function searchMangas($q, $pvdn) {
+    $sources = getMangaSearchProviders();
     $pvd = $sources[$pvdn];
     
     $hd = [
@@ -313,6 +331,26 @@ function search($q, $pvdn) {
     echo(listformat($rh)."<br/><br/>".listformat($r));
 }
 
+function searchNovels($q, $pvdn) {
+    $sources = getNovelSearchProviders();
+    $pvd = $sources[$pvdn];
+    
+    $pl = $pvd["search"]["payload"];
+    $pl[$pvd["search"]["query_key"]] = $q;
+
+    $hd = [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+        "Referer: ".$pvd["baseUrl"],
+    ];
+
+    [$r, $rh] = pfgc($pvd["baseUrl"].$pvd["search"]["endpoint"], $pvd["search"]["type"], $hd, $pl);
+
+    if ($r===false) {
+        return(false);
+    }
+
+    echo(listformat($rh)."<br/><br/>".$r);
+}
 
 
 
@@ -322,9 +360,9 @@ function search($q, $pvdn) {
 if ($a=="search" && $rtype=="GET") {
     [$q] = mdtpi(["q"]);
 
-    $sources = getSearchProviders();
+    $sources = getNovelSearchProviders();
     foreach($sources as $pvdn=>$v) {
-$       search($q, $pvdn);
+        searchNovels($q, $pvdn);
 
         break;
     }
