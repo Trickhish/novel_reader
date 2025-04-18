@@ -1,15 +1,32 @@
 {
     "mangas": {
 
+        "MangaBuddy": {
+            "baseUrl": "https://mangabuddy.com",
+            "cloudflare": false,
+            "search": {
+                "endpoint": "/api/manga/search",
+                "type": "GET",
+                "payload": {
+                    "q": "$query"
+                },
+                "query_key": "q"
+            }
+        },
+
         "NatoManga": {
             "baseUrl": "https://www.natomanga.com",
+            "cloudflare": true,
             "search": {
                 "endpoint": "/home/search/json",
                 "type": "GET",
                 "payload": {
                     "searchword": "$query"
                 },
-                "query_key": "searchword"
+                "query_key": "searchword",
+                "extract": {
+                    
+                }
             }
         }
     },
@@ -18,6 +35,7 @@
 
         "lightnovelworld.com": {
             "baseUrl": "https://www.lightnovelworld.com",
+            "cloudflare": false,
             "search": {
                 "endpoint": "/lnsearchlive",
                 "type": "POST",
@@ -33,6 +51,7 @@
 
         "lightnovelworld.co": {
             "baseUrl": "https://www.lightnovelworld.co",
+            "cloudflare": false,
             "search": {
                 "endpoint": ""
             }

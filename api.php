@@ -30,6 +30,19 @@ function fgc($url, $method="GET", $hd=[], $p=[]) {
 
     $headers=[];
 
+    if ($method=="GET") {
+        $s="";
+        foreach($p as $k=>$v) {
+            if ($s=="") {
+                $s.="?";
+            } else {
+                $s.="&";
+            }
+            $s.=$k."=".$v;
+        }
+        $url.=$s;
+    }
+
     curl_setopt($ch, CURLOPT_HTTPHEADER, $hd);
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_POST, $method=="POST");
@@ -311,24 +324,25 @@ function searchMangas($q, $pvdn) {
     
     $hd = [
         "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
-        "Referer: ".$pvd["baseUrl"],
-        "accept: application/json, text/javascript, */*; q=0.01",
-        "Accept-Encoding: gzip, deflate, br, zstd",
-        "content-type: application/x-www-form-urlencoded; charset=UTF-8",
-        "x-requested-with: XMLHttpRequest",
-        "Cookie: _ga=GA1.1.1557541590.1744476239; __cflb=02DiuHeaTueuYie8hq3xjy9ZBKxoR3jpw262hZStSMX1V; XSRF-TOKEN=eyJpdiI6IkQ2ZXZHU1hodVVkVXR2bVBCaEVZT0E9PSIsInZhbHVlIjoibm5USTFvaWpXYWVpM3VEVGxYOU9qSmR0d05sdjM4Z1pmUDVYd1FNUy9QU2V0UHBJZHJycU1zRmxnOGpKb3crKzhpMk0yQ1ZWeWhFZjNhekZ4b29KVTZrdVhTZVNyWWh3UmNPdkpob1NTS2dkVmtLRVVqckFJRmprMTZFSzd6MHoiLCJtYWMiOiIyZmRmMWQwODA5MmJjMzU3OTM0ZGZiNmMwNzljODM4YjJlMjYxMmY1YWZjOTNmOTI5NmE5MTAxMGIxYzNkZDljIn0%3D; mangakakalot_session=eyJpdiI6Ilk5OWZLTVJmQWNXdTI5dzB1TVBpMUE9PSIsInZhbHVlIjoiTnZFSktJM0k1UEw2YlVGMERVZUVTQjdnMHpyQ1UwcE9uV2loRGwwSittV2F6aXlzd3BpVXlKQ2dPdU8zcUF1N1FGWVBnckgvdFZyU1pxL000M3FEdjZXQmxPcmtxbjVLTDloMXREckVWdVhXcUZ1Rzkzd0FFQnBmZXFINWtaSnkiLCJtYWMiOiJkMmY3N2RlMGQ4ZTVjZGEyNzgwYmQwNDZiYTg3ZjllOWExOWZlMjBkMzcwZjg4MWNkOTA2NjE5ZTM2ZjNjYjJhIn0%3D; _ga_SFMBZBJXPJ=GS1.1.1744482182.2.1.1744483745.0.0.0; cf_clearance=WC.iJaKuSN0g2XfTg_.hFITVloDtG27jBkLdVJCP3MY-1744484168-1.2.1.1-VZNLMG9S.Hx8DNgoRRW6jT0b0zSjcIPN4rdsRpCUNMnuqO8wRdMEBbUk_4_penTQnh_AwzDGWdFuvFhmHiCJ4uo8v9jC2JsRJg08xhe77SFhN9riWaz.u41FiTFQFwok.ae23O64G6dgzT.zO1iIxQdJD9KF9JD.ke2ldGFq0gJ5jg3gcyxpInhzTAdT4J891Lp.CIUTDFe2wrjHjBWucc0A_e5HWeGVUXb6CyTQZa16LURdQtL8ojZCWcEFDeyzqJF9S5twl5KV5KGw6K8DJk5YS33yDETbz6SEcyojL4dd.x_Pi64ihGjnml7pDuqgN8qPyHl3rknqbl0EvjrI.X.h92_w3p5aJp.WP9g6bfz9yGaN.PFGrMpLKdJ52Wde"
+        "Referer: ".$pvd["baseUrl"]
     ];
 
+    
     $pl = $pvd["search"]["payload"];
     $pl[$pvd["search"]["query_key"]] = $q;
 
-    [$r, $rh] = pfgc($pvd["baseUrl"].$pvd["search"]["endpoint"], $pvd["search"]["type"], $hd, $pl);
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($pvd["baseUrl"].$pvd["search"]["endpoint"], $pvd["search"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($pvd["baseUrl"].$pvd["search"]["endpoint"], $pvd["search"]["type"], $hd, $pl);
+    }
+    
 
     echo($r."<br/>");
 
     $r = json_decode($r, true);
 
-    echo(listformat($rh)."<br/><br/>".listformat($r));
+    echo();
 }
 
 function searchNovels($q, $pvdn) {
@@ -360,9 +374,9 @@ function searchNovels($q, $pvdn) {
 if ($a=="search" && $rtype=="GET") {
     [$q] = mdtpi(["q"]);
 
-    $sources = getNovelSearchProviders();
+    $sources = getMangaSearchProviders();
     foreach($sources as $pvdn=>$v) {
-        searchNovels($q, $pvdn);
+        searchMangas($q, $pvdn);
 
         break;
     }
