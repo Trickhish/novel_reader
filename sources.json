@@ -2,6 +2,7 @@
     "mangas": {
 
         "MangaBuddy": {
+            "enabled": true,
             "baseUrl": "https://mangabuddy.com",
             "cloudflare": false,
             "search": {
@@ -10,11 +11,27 @@
                 "payload": {
                     "q": "$query"
                 },
-                "query_key": "q"
+                "query_key": "q",
+                "extract": {
+                    "ops": [
+                        ["split", "<div class=\"novel__item\">"],
+                        ["subarray", 1]
+                    ],
+                    "name": [
+                        ["cutbtw", "<a title=\"", "\""]
+                    ],
+                    "link": [
+                        ["cutbtw", "href=\"", "\""]
+                    ],
+                    "thumb": [
+                        ["cutbtw", "<img src=\"", "\""]
+                    ]
+                }
             }
         },
 
         "NatoManga": {
+            "enabled": false,
             "baseUrl": "https://www.natomanga.com",
             "cloudflare": true,
             "search": {
@@ -25,7 +42,19 @@
                 },
                 "query_key": "searchword",
                 "extract": {
-                    
+                    "ops": [
+                        "split|<div class=\"novel__item\">",
+                        "subarray|1-"
+                    ],
+                    "name": [
+                        "cutbtw|<a title=\"|\""
+                    ],
+                    "link": [
+                        "cutbtw|href=\"|\""
+                    ],
+                    "thumb": [
+                        "cutbtw|<img src=\"|\""
+                    ]
                 }
             }
         }

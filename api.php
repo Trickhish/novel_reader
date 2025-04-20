@@ -38,10 +38,12 @@ function fgc($url, $method="GET", $hd=[], $p=[]) {
             } else {
                 $s.="&";
             }
-            $s.=$k."=".$v;
+            $s.=$k."=".urlencode($v);
         }
         $url.=$s;
     }
+
+    echo($url."<br/>");
 
     curl_setopt($ch, CURLOPT_HTTPHEADER, $hd);
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -318,6 +320,37 @@ function getNovelSearchProviders() {
     return(json_decode($sources, true)["novels"]);
 }
 
+function extractOps($r, $ops) {
+    foreach($ops as $op) {
+        $opn = $op[0];
+
+        if ($opn=="split") {
+            $r = explode($op[1], $r);
+        } else if ($opn=="subarray") {
+            if (count($op)>2) {
+                $r = array_slice($r, $op[1], $op[2]);
+            } else {
+                $r = array_slice($r, $op[1]);
+            }
+        } else if ($opn=="substr") {
+            if (count($op)>2) {
+                $r = substr($r, $op[1], $op[2]);
+            } else {
+                $r = substr($r, $op[1]);
+            }
+        } else if ($opn=="cutbtw") {
+            if (count($op)>2) {
+                //echo(htmlspecialchars($op[2])."<br/>");
+                $r = explode($op[2], explode($op[1], $r)[1])[0];
+            } else {
+                $r = explode($op[1], $r)[0];
+            }
+        }
+    }
+
+    return($r);
+}
+
 function searchMangas($q, $pvdn) {
     $sources = getMangaSearchProviders();
     $pvd = $sources[$pvdn];
@@ -336,13 +369,23 @@ function searchMangas($q, $pvdn) {
     } else {
         [$r, $rh] = fgc($pvd["baseUrl"].$pvd["search"]["endpoint"], $pvd["search"]["type"], $hd, $pl);
     }
-    
 
-    echo($r."<br/>");
+    $ex = $pvd["search"]["extract"];
 
-    $r = json_decode($r, true);
+    $r = extractOps($r, $ex["ops"]);
 
-    echo();
+    $rl=[];
+    foreach($r as $re) {
+        $title = extractOps($re, $ex["name"]);
+        $url = extractOps($re, $ex["link"]);
+        if (substr($url, 0, 4)!="http") {
+            $url = $pvd["baseUrl"].(substr($url, 0, 1)=="/" ? "" : "/").$url;
+        }
+        $thumb = extractOps($re, $ex["thumb"]);
+
+        $rl[] = [$title, $url, $thumb];
+    }
+    return($rl);
 }
 
 function searchNovels($q, $pvdn) {
@@ -375,13 +418,16 @@ if ($a=="search" && $rtype=="GET") {
     [$q] = mdtpi(["q"]);
 
     $sources = getMangaSearchProviders();
+    $rl=[];
     foreach($sources as $pvdn=>$v) {
-        searchMangas($q, $pvdn);
-
-        break;
+        if (!$v["enabled"]) {
+            continue;
+        }
+        
+        $rl = array_merge($rl, searchMangas($q, $pvdn));
     }
 
-    ok();
+    ok($rl);
 }
 
 
