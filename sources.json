@@ -25,6 +25,72 @@
                     ],
                     "thumb": [
                         ["cutbtw", "<img src=\"", "\""]
+                    ],
+                    "desc": null
+                }
+            }
+        },
+
+        "WhaleManga": {
+            "enabled": true,
+            "baseUrl": "https://whalemanga.com",
+            "cloudflare": false,
+            "search": {
+                "endpoint": "/wp-admin/admin-ajax.php",
+                "type": "POST",
+                "payload": {
+                    "action": "wp-manga-search-manga",
+                    "title": "$query"
+                },
+                "query_key": "title",
+                "extract": {
+                    "ops": [
+                        ["json_decode"],
+                        ["dictSelect", "data"]
+                    ],
+                    "name": [
+                        ["dictSelect", "title"]
+                    ],
+                    "link": [
+                        ["dictSelect", "url"]
+                    ],
+                    "thumb": null,
+                    "desc": null
+                }
+            }
+        },
+
+        "ReaperScans": {
+            "enabled": true,
+            "baseUrl": "https://api.reaperscans.com",
+            "cloudflare": false,
+            "search": {
+                "endpoint": "/query",
+                "type": "GET",
+                "payload": {
+                    "adult": "true",
+                    "query_string": "$query"
+                },
+                "query_key": "query_string",
+                "extract": {
+                    "ops": [
+                        ["json_decode"],
+                        ["dictSelect", "data"]
+                    ],
+                    "name": [
+                        ["dictSelect", "title"]
+                    ],
+                    "desc": [
+                        ["dictSelect", "description"]
+                    ],
+                    "thumb": [
+                        ["dictSelect", "thumbnail"]
+                    ],
+                    "link": [
+                        ["concat", 
+                            "/series/",
+                            ["dictSelect", "series_slug"]
+                        ]
                     ]
                 }
             }
@@ -62,7 +128,39 @@
 
     "novels": {
 
+        "WebNovelPub.co": {
+            "enabled": true,
+            "baseUrl": "https://webnovelpub.co",
+            "cloudflare": false,
+            "search": {
+                "endpoint": "/ajax/searchLive",
+                "type": "GET",
+                "payload": {
+                    "inputContent": "$query"
+                },
+                "query_key": "inputContent",
+                "extract": {
+                    "ops": [
+                        ["split", "class=\\\"novel-item"],
+                        ["subarray", 1]
+                    ],
+                    "name": [
+                        ["cutbtw", "title=\\\"", "\\\""]
+                    ],
+                    "link": [
+                        ["cutbtw", "href=\\\"", "\\\""],
+                        ["decode_slashes"]
+                    ],
+                    "thumb": [
+                        ["cutbtw", "img src=\\\"", "\\\""],
+                        ["decode_slashes"]
+                    ]
+                }
+            }
+        },
+
         "lightnovelworld.com": {
+            "enabled": false,
             "baseUrl": "https://www.lightnovelworld.com",
             "cloudflare": false,
             "search": {
@@ -79,6 +177,7 @@
         },
 
         "lightnovelworld.co": {
+            "enabled": false,
             "baseUrl": "https://www.lightnovelworld.co",
             "cloudflare": false,
             "search": {
