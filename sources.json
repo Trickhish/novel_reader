@@ -1,7 +1,7 @@
 {
     "mangas": {
 
-        "MangaBuddy": {
+        "mangabuddy.com": {
             "enabled": true,
             "baseUrl": "https://mangabuddy.com",
             "cloudflare": false,
@@ -28,10 +28,58 @@
                     ],
                     "desc": null
                 }
+            },
+            "data": {
+                "type": "GET",
+                "payload": {},
+                "extract": {
+                    "name": [
+                        ["cutbtw", "<div class=\"name box\">", "</div>"],
+                        ["cutbtw", "<h1>", "</h1"]
+                    ],
+                    "authors": [
+                        ["cutbtw", "<p><strong>Authors :</strong>", "</p>"],
+                        ["split", "<a"],
+                        ["subarray", 1],
+                        ["cutbtw", "title=\"", "\""]
+                    ],
+                    "finished": [
+                        ["cutbtw", "<p><strong>Status :</strong>", "</a>"],
+                        ["cutbtw", "<span>", "</span>"],
+                        ["!=", "Ongoing"]
+                    ],
+                    "chapters_nb": [
+                        ["cutbtw", "<p><strong>Chapters: </strong>", "</p>"],
+                        ["cutbtw", "<span>", "</span>"]
+                    ],
+                    "last_update": [
+                        ["cutbtw", "<p><strong>Last update: </strong>", "</p>"],
+                        ["cutbtw", "<span>", "</span>"],
+                        ["ago_to_ts"]
+                    ],
+                    "tags": [
+                        ["cutbtw", "<p><strong>Genres :</strong>", "</p>"],
+                        ["split", "<a"],
+                        ["subarray", 1],
+                        ["cutbtw", ">", "<"],
+                        ["remove_strings", "\n", ","],
+                        ["trim"]
+                    ],
+                    "desc": [
+                        ["cutbtw", "<div class=\"section-body summary\">", "<div class=\"readmore\""],
+                        ["cutbtw", "<p class=\"content\"", "<div"],
+                        ["cutbtw", ">", "<"],
+                        ["trim"]
+                    ],
+                    "rating": [
+                        ["cutbtw", "\"ratingValue\":", ","],
+                        ["mult", 2]
+                    ]
+                }
             }
         },
 
-        "WhaleManga": {
+        "whalemanga.com": {
             "enabled": true,
             "baseUrl": "https://whalemanga.com",
             "cloudflare": false,
@@ -60,7 +108,7 @@
             }
         },
 
-        "ReaperScans": {
+        "reaperscans.com": {
             "enabled": true,
             "baseUrl": "https://api.reaperscans.com",
             "cloudflare": false,
@@ -96,7 +144,7 @@
             }
         },
 
-        "NatoManga": {
+        "natomanga.com": {
             "enabled": false,
             "baseUrl": "https://www.natomanga.com",
             "cloudflare": true,
@@ -128,7 +176,7 @@
 
     "novels": {
 
-        "WebNovelPub.co": {
+        "webnovelpub.co": {
             "enabled": true,
             "baseUrl": "https://webnovelpub.co",
             "cloudflare": false,

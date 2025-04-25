@@ -63,6 +63,11 @@ function getAllDnDM(e) {
     }
 }
 
+function removeAllChildren(e) {
+    while (e.firstChild) {
+        e.removeChild(e.lastChild);
+    }
+}
 
 window.addEventListener("load", ()=>{
     if ((window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && localStorage.getItem("theme")==null) || localStorage.getItem('theme')=="dark") {
@@ -71,6 +76,51 @@ window.addEventListener("load", ()=>{
 
     let vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+    const sip = document.getElementById('novel_search_input');
+    var sipt=null;
+    var sipv="";
+    function search(ev) {
+        if (sip.value.length < 3 || sip.value==sipv) {
+            return;
+        }
+        sipv=sip.value
+
+        if (sipt!=null) {
+            clearTimeout(sipt);
+        }
+        sipt = setTimeout(()=>{
+            console.log(sip.value);
+
+            get("search", {"q":sip.value}, (r)=>{
+                console.log(r);
+
+                var ctn = document.querySelector("#novel_search .search_results");
+                removeAllChildren(ctn);
+
+                var ct = r["content"];
+                var bkmd = false;
+                for (var e of ct) {
+                    if (e.title==null) {
+                        continue;
+                    }
+                    
+                    var ce = document.createElement("div");
+                    ce.className = "search_result "+e.type+(bkmd ? " marked" : "");
+                    ce.innerHTML = `
+                        <img class="thumbnail" onerror="this.src='/res/image_placeholder.jpg';" src="${e.thumb}" />
+                        <h2>${e.title}</h2>
+                        <img class="bookmark_btn${bkmd ? ' marked' : ''}" src="res/bookmarkws.png" />
+                    `;
+                    ctn.appendChild(ce);
+                }
+            });
+        }, 500);
+    }
+    sip.addEventListener('change', search);
+    sip.addEventListener('keyup', search);
 });
 
 window.onclick = function(e){

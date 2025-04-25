@@ -18,14 +18,19 @@ if (empty($_GET["dbg"])) {
     echo("<br/>\n");
 }
 
-function listformat($l) {
+function listformat($l, $lpf="") {
     $s = json_encode($l, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-    $s = str_replace(PHP_EOL, "<br/>", $s);
+    $s = htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $s = str_replace(" ", "&nbsp;", $s);
+    //$s = nl2br($s);
+    $s = str_replace(PHP_EOL, "<br/>".$lpf, $s);
+
     return($s);
 }
 
 function fgc($url, $method="GET", $hd=[], $p=[]) {
+    global $dbg;
+
     $ch = curl_init();
 
     $headers=[];
@@ -43,7 +48,9 @@ function fgc($url, $method="GET", $hd=[], $p=[]) {
         $url.=$s;
     }
 
-    echo($url."<br/>");
+    if ($dbg) {
+        echo($method." => ".$url."<br/>");
+    }
 
     curl_setopt($ch, CURLOPT_HTTPHEADER, $hd);
     curl_setopt($ch, CURLOPT_URL, $url);
@@ -93,7 +100,9 @@ function pfgc($url, $method="GET", $hd=[], $p=[]) {
         $url.=$s;
     }
 
-    echo($url."<br/><br/>");
+    if ($dbg) {
+        echo($method." => ".$url."<br/>");
+    }
 
     $pp = [
         "cmd"=> ($method=="POST" ? "request.post" : "request.get"),
@@ -123,6 +132,59 @@ function pfgc($url, $method="GET", $hd=[], $p=[]) {
         return([false, false]);
     }
 }
+
+
+
+
+function mfgc($requests) {
+    $multiHandle = curl_multi_init();
+    $curlHandles = [];
+    $responses = [];
+
+    foreach ($requests as $key => $req) {
+        $ch = curl_init();
+
+        $url = $req['url'];
+        $method = $req['method'] ?? 'GET';
+        $headers = $req['headers'] ?? [];
+        $params = $req['params'] ?? [];
+
+        if ($method === 'GET' && !empty($params)) {
+            $url .= '?' . http_build_query($params);
+        }
+
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+        }
+
+        $curlHandles[$key] = $ch;
+        curl_multi_add_handle($multiHandle, $ch);
+    }
+
+    do {
+        $status = curl_multi_exec($multiHandle, $running);
+        curl_multi_select($multiHandle);
+    } while ($running > 0);
+
+    foreach ($curlHandles as $key => $ch) {
+        $responses[$key] = curl_multi_getcontent($ch);
+        curl_multi_remove_handle($multiHandle, $ch);
+        curl_close($ch);
+    }
+
+    curl_multi_close($multiHandle);
+
+    return $responses;
+}
+
+
+
 
 function gzd( $data ){
     $g=tempnam('/tmp','ff');
@@ -320,62 +382,218 @@ function getNovelSearchProviders() {
     return(json_decode($sources, true)["novels"]);
 }
 
-function extractOps($r, $ops) {
+function extractOps($r, $ops, $lvl=0) {
+    global $dbg;
+
     if ($ops==null) {
-        return(null);
+        return($r);
+    }
+
+    $pre = str_repeat("&emsp;&emsp;&emsp;", $lvl);
+
+    if ($dbg) {
+        echo("<br/>");
+        if ($r==null) {
+            echo($pre);
+            echo("Source is empty<br/>");
+        } else {
+            $rs=$r;
+            if (is_array($rs)) {
+                $rs=json_encode($r);
+            }
+
+            echo($pre);
+            if (strlen($rs)<400) {
+                echo("Source: ".htmlspecialchars($rs)."<br/>");
+            } else {
+                echo("Source (".strlen($r)."): ".htmlspecialchars(substr($rs, 0, 400))."...<br/>");
+            }
+        }
     }
 
     foreach($ops as $op) {
         $opn = $op[0];
 
-        if ($opn=="split") {
-            $r = explode($op[1], $r);
-        } else if ($opn=="subarray") {
-            if (count($op)>2) {
-                $r = array_slice($r, $op[1], $op[2]);
-            } else {
-                $r = array_slice($r, $op[1]);
-            }
-        } else if ($opn=="substr") {
-            if (count($op)>2) {
-                $r = substr($r, $op[1], $op[2]);
-            } else {
-                $r = substr($r, $op[1]);
-            }
-        } else if ($opn=="cutbtw") {
-            if (count($op)>2) {
-                //echo(htmlspecialchars($op[2])."<br/>");
-                $r = explode($op[2], explode($op[1], $r)[1])[0];
-            } else {
-                $r = explode($op[1], $r)[0];
-            }
-        } else if ($opn=="json_decode") {
-            $r = json_decode($r, true);
-        } else if ($opn=="dictSelect") {
-            $r = $r[$op[1]];
-        } else if ($opn=="concat") {
-            $rs = "";
-            for($i=1; $i<count($ops); $i++) {
-                $op = $ops[$i];
+        if ($dbg) {
+            echo(listformat($op, $pre)."<br/>\n");
+        }
 
-                if (is_array($op)) {
-                    $rs.=extractOps($r, $op);
+        if ($opn=="split") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(explode($op[1], $e));
+                }, $r);
+            } else {
+                $r = explode($op[1], $r);
+            }
+        
+        } else if ($opn=="subarray") {
+            $r = array_slice($r, $op[1], $op[2]??null);
+        
+        } else if ($opn=="substr") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(substr($e, $op[1], $op[2]??null));
+                }, $r);
+            } else {
+                $r = substr($r, $op[1], $op[2]??null);
+            }
+        
+        } else if ($opn=="cutbtw") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    if (count($op)>2) {
+                        return(explode($op[2], explode($op[1], $e)[1])[0]);
+                    } else {
+                        return(explode($op[1], $e)[0]);
+                    }
+                }, $r);
+            } else {
+                if (count($op)>2) {
+                    $r = explode($op[2], explode($op[1], $r)[1])[0];
                 } else {
-                    $rs.=$op;
+                    $r = explode($op[1], $r)[0];
                 }
             }
+        
+        } else if ($opn=="json_decode") {
+            $r = json_decode($r, true);
+        
+        } else if ($opn=="dictSelect") {
+            $r = $r[$op[1]];
+        
+        } else if ($opn=="concat") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($ops) {
+                    $rs = "";
+                    for($i=1; $i<count($ops); $i++) {
+                        $op = $ops[$i];
 
-            $r=$rs;
+                        if (is_array($op)) {
+                            $rs.=extractOps($e, $op, $lvl+1);
+                        } else {
+                            $rs.=$op;
+                        }
+                    }
+
+                    return($rs);
+                }, $r);
+            } else {
+                $rs = "";
+                for($i=1; $i<count($ops); $i++) {
+                    $op = $ops[$i];
+
+                    if (is_array($op)) {
+                        $rs.=extractOps($r, $op, $lvl+1);
+                    } else {
+                        $rs.=$op;
+                    }
+                }
+
+                $r=$rs;
+            }
+
         } else if ($opn=="decode_slashes") {
             $r = stripcslashes($r);
             $r = str_replace('\\/', '/', $r);
+        
+        } else if ($opn=="array") {
+            $l=[];
+
+            for($i=1; $i<count($ops); $i++) {
+                $op = $ops[$i];
+
+                $l[] = extractOps($r, $op, $lvl+1);
+            }
+
+            $r=$l;
+        } else if ($opn=="dict") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return($e);
+                }, $r);
+            } else {
+                
+            }
+        } else if ($opn=="!=") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return($e!=$op[1]);
+                }, $r);
+            } else {
+                $r = ($r!=$op[1]);
+            }
+        } else if ($opn=="=" || $opn=="==") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return($e==$op[1]);
+                }, $r);
+            } else {
+                $r = ($r==$op[1]);
+            }
+        } else if ($opn=="ago_to_ts") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(strtotime($e));
+                }, $r);
+            } else {
+                $r = strtotime($r);
+            }
+        } else if ($opn=="trim") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(trim($e));
+                }, $r);
+            } else {
+                $r = trim($r);
+            }
+        } else if ($opn=="remove_strings") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    for($i=1; $i<count($op); $i++) {
+                        $e=str_replace($op[$i], "", $e);
+                    }
+                    return($e);
+                }, $r);
+            } else {
+                for($i=1; $i<count($op); $i++) {
+                    $r=str_replace($op[$i], "", $r);
+                }
+            }
+        } else if ($opn=="mult") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return($e*$op[1]);
+                }, $r);
+            } else {
+                $r = $r*$op[1];
+            }
         }
+
+        if ($dbg) {
+            echo($pre);
+            echo("Result is ".(is_array($r) ? "an Array" : "a string")." of length ".(is_array($r) ? count($r) : strlen($r))."<br/>");
+            $rs=$r;
+            if (is_array($rs)) {
+                $rs=json_encode($rs);
+            }
+            echo($pre);
+            echo(htmlspecialchars(substr($rs, 0, 400)));
+            if (strlen($rs)>400) {
+                echo("...");
+            }
+            echo("<br/><br/>");
+        }
+    }
+
+    if ($dbg) {
+        echo("<br/><br/>");
     }
 
     return($r);
 }
 
-function searchMangas($q, $pvdn) {
+function pvdSearchMangas($q, $pvdn) {
     $sources = getMangaSearchProviders();
     $pvd = $sources[$pvdn];
     
@@ -412,12 +630,16 @@ function searchMangas($q, $pvdn) {
             $thumb = extractOps($re, $ex["thumb"]);
         }
 
-        $rl[] = [$title, $url, $thumb];
+        $rl[] = [
+            "title"=>$title,
+            "url"=>$url,
+            "thumb"=>$thumb
+        ];
     }
     return($rl);
 }
 
-function searchNovels($q, $pvdn) {
+function pvdSearchNovels($q, $pvdn) {
     $sources = getNovelSearchProviders();
     $pvd = $sources[$pvdn];
     
@@ -458,28 +680,28 @@ function searchNovels($q, $pvdn) {
             $thumb = extractOps($re, $ex["thumb"]);
         }
 
-        $rl[] = [$title, $url, $thumb];
+        $rl[] = [
+            "title"=>$title,
+            "url"=>$url,
+            "thumb"=>$thumb
+        ];
     }
 
     return($rl);
 }
 
-
-
-
-@$a = $_GET["a"];
-
-if ($a=="search" && $rtype=="GET") {
-    [$q] = mdtpi(["q"]);
-
+function searchNovels($q, $n=3, $tl=500) {
     $sources = getNovelSearchProviders();
     $rl=[];
+
+    $t = microtime(true)*1000;
+
     foreach($sources as $pvdn=>$v) {
         if (!$v["enabled"]) {
             continue;
         }
         
-        $r = searchNovels($q, $pvdn);
+        $r = pvdsearchNovels($q, $pvdn);
 
         if ($r==null) {
             continue;
@@ -487,15 +709,142 @@ if ($a=="search" && $rtype=="GET") {
 
         $rl = array_merge($rl, $r);
 
-        if (count($rl) > 0) {
+        if (count($rl) > $n || ((microtime(true)*1000)-$t)>$tl) {
             break;
         }
     }
+
+    return($rl);
+}
+
+function searchMangas($q, $n=3, $tl=500) {
+    $sources = getMangaSearchProviders();
+    $rl=[];
+
+    $t = microtime(true)*1000;
+
+    foreach($sources as $pvdn=>$v) {
+        if (!$v["enabled"]) {
+            continue;
+        }
+        
+        $r = pvdSearchMangas($q, $pvdn);
+
+        if ($r==null) {
+            continue;
+        }
+
+        $rl = array_merge($rl, $r);
+
+        if (count($rl) > $n || ((microtime(true)*1000)-$t)>$tl) {
+            break;
+        }
+    }
+
+    return($rl);
+}
+
+function getProvider($url) {
+    $ru = parse_url($url);
+    $host = str_replace("www.", "", $ru["host"]);
+
+    $Msources = getMangaSearchProviders();
+    $Nsources = getNovelSearchProviders();
+
+    if (array_key_exists($host, $Msources)) {
+        $tp="manga";
+        $src = $Msources[$host];
+    } else if (array_key_exists($host, $Msources)) {
+        $tp="novel";
+        $src = $Nsources[$host];
+    } else {
+        return([null, null, null]);
+    }
+
+    return([$host, $tp, $src]);
+}
+
+function getData($url, $pvd) {
+    $hd = [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+        "Referer: ".$pvd["baseUrl"],
+    ];
+
+    $pl = $pvd["data"]["payload"];
+    //$pl[$pvd["search"]["query_key"]] = $q;
+
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($url, $pvd["data"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($url, $pvd["data"]["type"], $hd, $pl);
+    }
+
+    if ($r===false) {
+        return(false);
+    }
+
+    $xt = $pvd["data"]["extract"];
+
+    $r = extractOps($r, $xt["ops"]??null);
+
+    $rl=[];
+    foreach($xt as $k=>$v) {
+        if ($k=="ops") {
+            continue;
+        }
+
+        $rl[$k] = extractOps($r, $v);
+        //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
+    }
+
+    return($rl);
+}
+
+@$a = $_GET["a"];
+
+if ($a=="search" && $rtype=="GET") {
+    [$q] = mdtpi(["q"]);
+
+    $novels = searchNovels($q, 1, 500);
+    $mangas = searchMangas($q, 1, 500);
+
+    $novels = array_map(function($e) {
+        $e["type"] = "novel";
+        return($e);
+    }, $novels);
+
+    $mangas = array_map(function($e) {
+        $e["type"] = "manga";
+        return($e);
+    }, $mangas);
+
+    $rl = array_merge($novels, $mangas);
+
+    usort($rl, function($a, $b) use ($q) {
+        similar_text($q, $a["title"], $percentA);
+        similar_text($q, $b["title"], $percentB);
+        
+        return $percentB <=> $percentA;
+    });
 
     ok($rl);
 }
 
 
+
+else if ($a=="data" && $rtype=="GET") {
+    [$url] = mdtpi(["url"]);
+
+    [$pvdn, $type, $pvd] = getProvider($url);
+
+    if ($pvdn==null) {
+        err("unknown_provider", "No provider was found for this url");
+    }
+
+    $dt = getData($url, $pvd);
+
+    ok($dt);
+}
 
 
 if (!$dsp || true) {

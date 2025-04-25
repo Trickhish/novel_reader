@@ -134,3 +134,101 @@ nav .mode_bt.active {
 #novel_search.active {
     display: block;
 }
+
+.search_results {
+    position: absolute;
+    width: max-content;
+    max-width: 55dvw;
+    left: 50%;
+    translate: -50% 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    gap: .5rem;
+    margin-top: 1rem;
+    overflow-y: auto;
+    max-height: 80dvh;
+}
+
+.search_result {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    height: 15rem;
+    overflow: hidden;
+    cursor: pointer;
+    border-radius: 11px;
+}
+
+.search_result .thumbnail {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    transition: all .2s ease-in-out;
+}
+.search_result:hover .thumbnail {
+    scale:1.1;
+}
+
+.search_result .bookmark_btn {
+    height: 43px;
+    /* width: 30px; */
+    position: absolute;
+    right: 0;
+    right: -3px;
+    top: -7px;
+    /* backdrop-filter: blur(2px) brightness(1.1); */
+    /* background-color: #ffffff1a;*/
+    transition: all .2s ease-in-out;
+}
+.search_result .bookmark_btn:hover {
+    top: -4px;
+}
+.search_result .bookmark_btn.marked {
+    --lc_clr: #ffc800;
+    background-image: linear-gradient(var(--lc_clr), var(--lc_clr));
+    background-size: 50px 20px;
+    background-repeat: no-repeat;
+    background-position: 6px 7px;
+}
+
+.search_result h2 {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    padding: 5px 5px;
+    translate: -5px;
+    text-align: center;
+    font-weight: 700;
+    /*color: var(--font-color);
+    backdrop-filter: blur(1px) brightness(0.7);*/
+
+    color: #000000;
+    background-color: #ffffff4a;
+    backdrop-filter: blur(1px) brightness(1.1);
+}
+
+
+.search_result::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    padding: 0;
+    height: 35px;
+    width: 35px;
+
+    
+    background-position: center;
+    background-size: contain;
+    /*border-bottom-right-radius: 13px;*/
+}
+
+.search_result.manga::after {
+    background-image: url(/res/stain_icon.png);
+}
+
+.search_result.novel::after {
+    background-image: url(/res/book_icon.png);
+}
