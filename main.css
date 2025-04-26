@@ -138,7 +138,7 @@ nav .mode_bt.active {
 .search_results {
     position: absolute;
     width: max-content;
-    max-width: 55dvw;
+    max-width: 53dvw;
     left: 50%;
     translate: -50% 0;
     display: flex;
@@ -150,6 +150,9 @@ nav .mode_bt.active {
     margin-top: 1rem;
     overflow-y: auto;
     max-height: 80dvh;
+
+    scrollbar-color: #818181 #1e1e1e6b;
+    scrollbar-width: thin;
 }
 
 .search_result {
