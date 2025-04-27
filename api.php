@@ -1,9 +1,11 @@
 <?php
 
 $dbg = !empty($_GET["dbg"]);
-$tet = microtime(true);
 $rtype = $_SERVER['REQUEST_METHOD'];
 $dsp=false;
+$execution_time = [
+    "total"=> microtime(true)*1000
+];
 
 if (empty($_GET["dbg"])) {
     error_reporting(0);
@@ -16,6 +18,19 @@ if (empty($_GET["dbg"])) {
         echo("\$_GET[".$k."] = ".$_GET[$k]."<br/>\n");
     }
     echo("<br/>\n");
+}
+
+
+
+function starttime($etn) {
+    global $execution_time;
+
+    $execution_time[$etn] = microtime(true)*1000;
+}
+function stoptime($etn) {
+    global $execution_time;
+
+    $execution_time[$etn] = intval((microtime(true)*1000)-$execution_time[$etn]);
 }
 
 function listformat($l, $lpf="") {
@@ -246,21 +261,27 @@ function mdtpi($pl=[]) {
 
 function ok($ct=null, $et=array()) {
     global $dbg;
-    global $tet;
+    global $execution_time;
 
-    $et["total"] = intval((microtime(true)-$tet)*1000);
+    //$et["total"] = intval((microtime(true)-$tet)*1000);
+    foreach($execution_time as $etn=>$et) {
+        //echo((microtime(true)*1000).", ".$et.", ".intval((microtime(true)*1000)-$et)."<br/>");
+        if ($et > 100000000) {
+            $execution_time[$etn] = intval(((microtime(true)*1000)-$et));
+        }
+    }
 
     if ($dbg) {
         echo(listformat(array(
             "success"=> true,
             "content"=> $ct,
-            "execution_time"=> $et
+            "execution_time"=> $execution_time
         )));
     } else {
         echo(json_encode(array(
             "success"=> true,
             "content"=> $ct,
-            "execution_time"=> $et
+            "execution_time"=> $execution_time
         ), JSON_UNESCAPED_SLASHES));
     }
     exit();
@@ -268,9 +289,15 @@ function ok($ct=null, $et=array()) {
 
 function err($ec="", $em="", $sc=400, $ct=null, $et=array()) {
     global $dbg;
-    global $tet;
+    global $execution_time;
 
-    $et["total"] = intval((microtime(true)-$tet)*1000);
+    //$et["total"] = intval((microtime(true)-$tet)*1000);
+    foreach($execution_time as $etn=>$et) {
+        //echo((microtime(true)*1000).", ".$et.((microtime(true)*1000)-$et)."<br/>");
+        if ($et > 100000000) {
+            $execution_time[$etn] = intval(((microtime(true)*1000)-$et));
+        }
+    }
 
     http_response_code($sc);
 
@@ -280,7 +307,7 @@ function err($ec="", $em="", $sc=400, $ct=null, $et=array()) {
             "error_code"=> $ec,
             "error_message"=> $em,
             "content"=> $ct,
-            "execution_time"=> $et
+            "execution_time"=> $execution_time
         )));
     } else {
         echo(json_encode(array(
@@ -288,7 +315,7 @@ function err($ec="", $em="", $sc=400, $ct=null, $et=array()) {
             "error_code"=> $ec,
             "error_message"=> $em,
             "content"=> $ct,
-            "execution_time"=> $et
+            "execution_time"=> $execution_time
         ), JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE));
     }
 
@@ -773,11 +800,13 @@ function getData($url, $pvd) {
     $pl = $pvd["data"]["payload"];
     //$pl[$pvd["search"]["query_key"]] = $q;
 
+    starttime("data_request");
     if ($pvd["cloudflare"]) {
         [$r, $rh] = pfgc($url, $pvd["data"]["type"], $hd, $pl);
     } else {
         [$r, $rh] = fgc($url, $pvd["data"]["type"], $hd, $pl);
     }
+    stoptime("data_request");
 
     if ($r===false) {
         return(false);
@@ -785,6 +814,7 @@ function getData($url, $pvd) {
 
     $xt = $pvd["data"]["extract"];
 
+    starttime("data_extraction");
     $r = extractOps($r, $xt["ops"]??null);
 
     $rl=[];
@@ -796,17 +826,107 @@ function getData($url, $pvd) {
         $rl[$k] = extractOps($r, $v);
         //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
     }
+    stoptime("data_extraction");
 
     return($rl);
 }
+
+function getId($url, $pvd) {
+    $hd = [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+        "Referer: ".$pvd["baseUrl"],
+    ];
+
+    $pl = $pvd["id"]["payload"];
+    //$pl[$pvd["search"]["query_key"]] = $q;
+
+    starttime("data_request");
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($url, $pvd["data"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($url, $pvd["data"]["type"], $hd, $pl);
+    }
+    stoptime("data_request");
+
+    if ($r===false) {
+        return(false);
+    }
+
+    $xt = $pvd["data"]["extract"];
+
+    starttime("data_extraction");
+    $r = extractOps($r, $xt["ops"]??null);
+
+    $rl=[];
+    foreach($xt as $k=>$v) {
+        if ($k=="ops") {
+            continue;
+        }
+
+        $rl[$k] = extractOps($r, $v);
+        //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
+    }
+    stoptime("data_extraction");
+
+    return($rl);
+}
+
+function getChapters($url, $pvd) {
+    $hd = [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+        "Referer: ".$pvd["baseUrl"],
+    ];
+
+    $pl = $pvd["data"]["payload"];
+    //$pl[$pvd["search"]["query_key"]] = $q;
+
+    starttime("data_request");
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($url, $pvd["data"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($url, $pvd["data"]["type"], $hd, $pl);
+    }
+    stoptime("data_request");
+
+    if ($r===false) {
+        return(false);
+    }
+
+    $xt = $pvd["data"]["extract"];
+
+    starttime("data_extraction");
+    $r = extractOps($r, $xt["ops"]??null);
+
+    $rl=[];
+    foreach($xt as $k=>$v) {
+        if ($k=="ops") {
+            continue;
+        }
+
+        $rl[$k] = extractOps($r, $v);
+        //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
+    }
+    stoptime("data_extraction");
+
+    return($rl);
+}
+
+
 
 @$a = $_GET["a"];
 
 if ($a=="search" && $rtype=="GET") {
     [$q] = mdtpi(["q"]);
 
+    starttime("novels_search");
     $novels = searchNovels($q, 1, 500);
+    stoptime("novels_search");
+
+    starttime("mangas_search");
     $mangas = searchMangas($q, 1, 500);
+    stoptime("mangas_search");
+
+    starttime(etn: "sorting");
 
     $novels = array_map(function($e) {
         $e["type"] = "novel";
@@ -827,6 +947,8 @@ if ($a=="search" && $rtype=="GET") {
         return $percentB <=> $percentA;
     });
 
+    stoptime(etn: "sorting");
+
     ok($rl);
 }
 
@@ -844,6 +966,22 @@ else if ($a=="data" && $rtype=="GET") {
     $dt = getData($url, $pvd);
 
     ok($dt);
+}
+
+
+
+else if ($a=="chapters" && $rtype=="GET") {
+    [$url] = mdtpi(["url"]);
+
+    [$pvdn, $type, $pvd] = getProvider($url);
+
+    if ($pvdn==null) {
+        err("unknown_provider", "No provider was found for this url");
+    }
+
+    $chl = getChapters($url, $pvd);
+
+    ok($chl);
 }
 
 
