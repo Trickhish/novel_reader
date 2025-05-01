@@ -134,7 +134,7 @@ function pfgc($url, $method="GET", $hd=[], $p=[]) {
 
     $r = json_decode($r, true);
     
-    $sts = $r["status"];
+    //$sts = $r["status"];
 
     if (array_key_exists("solution", $r)) {
         $r = $r["solution"]; // response, headers, cookies, status
@@ -326,20 +326,20 @@ function sqlinit() {
     global $bdd;
 
     if ($bdd!=null) {
-        try {
+        /*try {
             $stmt = $bdd->query("DELETE FROM tokens WHERE expiry_date<NOW()");
             return;
         } catch (PDOException $e) {
-        }
+        }*/
     }
     $bdd = new PDO("mysql:host=localhost;dbname=reader", "reader", "\$DMd**nI4vvrhAk0h%CZ7lJr%tVy3qCc!vN67$8&");
 
-    try {
+    /*try {
         $stmt = $bdd->query("DELETE FROM tokens WHERE expiry_date<NOW()");
         return;
     } catch (PDOException $e) {
         throw new Exception("Database Error: " . $e->getMessage(), 400);
-    }
+    }*/
 }
 
 function req($q, $vars=array(), $ff=PDO::FETCH_ASSOC) { // PDO::FETCH_ASSOC, PDO::FETCH_NUM
@@ -409,9 +409,24 @@ function getNovelSearchProviders() {
     return(json_decode($sources, true)["novels"]);
 }
 
-function extractOps($r, $ops, $lvl=0) {
+
+function join_url(string $base, string $path): string {
+    return rtrim($base, '/') . '/' . ltrim($path, '/');
+}
+
+function replaceVars($ct, $dict) {
+    return(preg_replace_callback('/\$\[([^\]\r\n]{1,15})\]/', function ($matches) use ($dict) {
+        $key = $matches[1];
+        return $dict[$key] ?? $matches[0];
+    }, $ct));
+}
+
+function extractOps($r, $ops, $dt=[], $lvl=0) {
     global $dbg;
 
+    //if ($ops==[]) {
+    //    return(null);
+    //}
     if ($ops==null) {
         return($r);
     }
@@ -442,7 +457,7 @@ function extractOps($r, $ops, $lvl=0) {
         $opn = $op[0];
 
         if ($dbg) {
-            echo(listformat($op, $pre)."<br/>\n");
+            echo("OP [".$opn."] -> ".listformat($op, $pre)."<br/>\n");
         }
 
         if ($opn=="split") {
@@ -483,6 +498,8 @@ function extractOps($r, $ops, $lvl=0) {
                 }
             }
         
+        } else if ($opn=="substring") {
+
         } else if ($opn=="json_decode") {
             $r = json_decode($r, true);
         
@@ -490,30 +507,34 @@ function extractOps($r, $ops, $lvl=0) {
             $r = $r[$op[1]];
         
         } else if ($opn=="concat") {
+            //echo((is_array($r) ? "IS ARRAY" : "IS NOT ARRAY")."<br/>");
             if (is_array($r)) {
-                $r = array_map(function ($e) use ($ops) {
+                $r = array_map(function ($e) use ($op, $dt, $lvl) {
                     $rs = "";
-                    for($i=1; $i<count($ops); $i++) {
-                        $op = $ops[$i];
+                    for($i=1; $i<count($op); $i++) {
+                        $lop = $op[$i];
 
-                        if (is_array($op)) {
-                            $rs.=extractOps($e, $op, $lvl+1);
+                        if (is_array($lop)) {
+                            $rs.=extractOps($e, $lop, $dt??[], ($lvl??0)+1);
                         } else {
-                            $rs.=$op;
+                            $rs.=$lop;
                         }
                     }
 
                     return($rs);
                 }, $r);
             } else {
+                //echo("OPS: ".count($op)." : ".listformat($op)."<br/>");
                 $rs = "";
-                for($i=1; $i<count($ops); $i++) {
-                    $op = $ops[$i];
+                for($i=1; $i<count($op); $i++) {
+                    $lop = $op[$i];
 
-                    if (is_array($op)) {
-                        $rs.=extractOps($r, $op, $lvl+1);
+                    if (is_array($lop)) {
+                        //echo("Concat: [".$lop[0]."]<br/>");
+                        $rs.=extractOps($r, $lop, $dt, $lvl+1);
                     } else {
-                        $rs.=$op;
+                        //echo("Concat: ".$lop."<br/>");
+                        $rs.=$lop;
                     }
                 }
 
@@ -530,18 +551,10 @@ function extractOps($r, $ops, $lvl=0) {
             for($i=1; $i<count($ops); $i++) {
                 $op = $ops[$i];
 
-                $l[] = extractOps($r, $op, $lvl+1);
+                $l[] = extractOps($r, $op, [], $lvl+1);
             }
 
             $r=$l;
-        } else if ($opn=="dict") {
-            if (is_array($r)) {
-                $r = array_map(function ($e) use ($op) {
-                    return($e);
-                }, $r);
-            } else {
-                
-            }
         } else if ($opn=="!=") {
             if (is_array($r)) {
                 $r = array_map(function ($e) use ($op) {
@@ -559,6 +572,14 @@ function extractOps($r, $ops, $lvl=0) {
                 $r = ($r==$op[1]);
             }
         } else if ($opn=="ago_to_ts") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(strtotime($e));
+                }, $r);
+            } else {
+                $r = strtotime($r);
+            }
+        } else if ($opn=="date_to_ts") {
             if (is_array($r)) {
                 $r = array_map(function ($e) use ($op) {
                     return(strtotime($e));
@@ -595,11 +616,213 @@ function extractOps($r, $ops, $lvl=0) {
             } else {
                 $r = $r*$op[1];
             }
+        } else if ($opn=="dbset") {
+            [, $options, $table, $wheres, $sets] = $op;
+
+            $where="";
+            $vars=[];
+            if (count($wheres) > 0) {
+                $where=" WHERE ";
+                foreach($wheres as $k=>$v) {
+                    $k = replaceVars($k, $dt+["CURRENT"=>$r]);
+                    $v = replaceVars($v, $dt+["CURRENT"=>$r]);
+
+                    $vars[$k] = $v;
+
+                    if ($where != " WHERE ") {
+                        $where.=" AND ";
+                    }
+                    $where.=$k."=:".$k;
+                }
+            }
+
+            [$dbr, $dbm] = req("SELECT * FROM $table$where LIMIT 1", $vars);
+
+
+            $set="";
+            $vars=[];
+            $vals=[];
+
+            foreach($sets as $k=>$v) {
+                $k = replaceVars($k, $dt+["CURRENT"=>$r]);
+                $v = replaceVars($v, $dt+["CURRENT"=>$r]);
+                $vars[$k] = $v;
+                $sets[$k] = $v;
+
+                $vals[] = ":".$k;
+
+                if ($set!="") {
+                    $set.=", ";
+                }
+                $set.=$k."=:".$k;
+            }
+
+            $kys = implode(", ", array_keys($sets));
+            $vals = implode(", ", $vals);
+
+            if (count($dbr) > 0) { // already in the database
+                //echo("UPDATE $table SET $set$where<br/>");
+
+                [$dbr] = req("UPDATE $table SET $set$where", $vars);
+            } else {
+                //echo("INSERT INTO $table ($kys) VALUES ($vals)");
+
+                [$dbr] = req("INSERT INTO $table ($kys) VALUES ($vals)", $vars);
+            }
+        } else if ($opn=="dbget") {
+            [, $options, $table, $wheres, $gets] = $op;
+
+            $where="";
+            $vars=[];
+            if (count($wheres) > 0) {
+                $where=" WHERE ";
+                foreach($wheres as $k=>$v) {
+                    $k = replaceVars($k, $dt+["CURRENT"=>$r]);
+                    $v = replaceVars($v, $dt+["CURRENT"=>$r]);
+
+                    $vars[$k] = $v;
+
+                    if ($where != " WHERE ") {
+                        $where.=" AND ";
+                    }
+                    $where.=$k."=:".$k;
+                }
+            }
+
+            if (is_array($gets)) {
+                $get = implode(", ", $gets);
+            } else {
+                $get=$gets;
+            }
+
+            [$dbr, $dbm] = req("SELECT $get FROM $table$where LIMIT 1", $vars);
+
+            if (count($dbr) > 0) {
+                if (is_array($gets)) {
+                    $r = $dbr[0];
+                } else {
+                    $r = $dbr[0][$gets];
+                }
+            } else {
+                $r = null;
+            }
+
+        } else if ($opn=="lcstore") {
+            $dt[$op[1]] = $r;
+        } else if ($opn=="lcget") {
+            if (array_key_exists($op[1], $dt)) {
+                $r = $dt[$op[1]];
+            } else {
+                if ($dbg) {
+                    echo("! DataKey '".$op[1]."' was not found: ".implode(",", array_keys($dt))."<br/>");
+                }
+                $r = null;
+            }
+        } else if ($opn=="requestop") {
+            [, $type, $pvdn, $reqp, $key, $params] = $op;
+
+            if ($type == "manga") {
+                $pvd = getMangaSearchProviders()[$pvdn];
+            } else {
+                $pvd = getNovelSearchProviders()[$pvdn];
+            }
+
+            foreach($params as $k=>$v) {
+                if (is_array($v)) {
+                    $params[$k] = extractOps($r, $v, $dt);
+                }
+            }
+
+            foreach($reqp as $sbf) {
+                $pvd=$pvd[$sbf];
+            }
+
+            $hd = [
+                "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+                //"Referer: ".$pvd["baseUrl"]
+            ];
+
+
+            $pl = $pvd["payload"];
+            //$pl[$pvd["query_key"]] = $q;
+
+            if ($pvd["cloudflare"]??false) {
+                [$r, $rh] = pfgc($params["url"], $pvd["type"], $hd, $pl);
+            } else {
+                [$r, $rh] = fgc($params["url"], $pvd["type"], $hd, $pl);
+            }
+
+            $ex = $pvd["extract"];
+
+            if (array_key_exists("ops", $ex)) {
+                $r = extractOps($r, $ex["ops"], []);
+            }
+
+            $r = extractOps($r, $ex[$key], $dt);
+        } else if ($opn=="contains") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    return(str_contains($e, $op[1]));
+                }, $r);
+            } else {
+                $r = str_contains($r, $op[1]);
+            }
+        } else if ($opn=="dict") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op, $dt, $lvl, $r) {
+                    
+                    $nr = [];
+                    foreach($op[1] as $k=>$v) {
+                        if (is_array($v)) {
+                            $nr[$k] = extractOps($e, $v, $dt, $lvl+1);
+                        } else {
+                            $nr[$k]=replaceVars($v, $dt+["CURRENT"=>$r]);
+                        }
+                    }
+                    return($nr);
+
+                }, $r);
+            } else {
+                $nr = [];
+                foreach($op[1] as $k=>$v) {
+                    if (is_array($v)) {
+                        $nr[$k] = extractOps($r, $v, $dt, $lvl+1);
+                    } else {
+                        $nr[$k] = replaceVars($v, $dt+["CURRENT"=>$r]);
+                    }
+                }
+                $r = $nr;
+            }
+        } else if ($opn=="appendBase") {
+            if (is_array($r)) {
+                $r = array_map(function ($e) use ($op) {
+                    
+                    return(join_url($op[1], $e));
+
+                }, $r);
+            } else {
+                $r = join_url($op[1], $r);
+            }
+        } else if ($opn=="fallback") {
+            $i=1;
+            foreach(array_splice($op, 1) as $lop) {
+                $tr = extractOps($r, $lop, $dt, $lvl+1);
+                if ($tr!==null) {
+                    $r = $tr;
+
+                    if ($dbg) {
+                        echo("Fallback option ".$i.": ".$lop[0][0]."<br/>");
+                    }
+
+                    break;
+                }
+                $i++;
+            }
         }
 
         if ($dbg) {
             echo($pre);
-            echo("Result is ".(is_array($r) ? "an Array" : "a string")." of length ".(is_array($r) ? count($r) : strlen($r))."<br/>");
+            echo("Result is ".(is_array($r) ? "an Array" : "a string")." of length ".(is_array($r) ? count($r) : strlen($r??""))."<br/>");
             $rs=$r;
             if (is_array($rs)) {
                 $rs=json_encode($rs);
@@ -641,12 +864,12 @@ function pvdSearchMangas($q, $pvdn) {
 
     $ex = $pvd["search"]["extract"];
 
-    $r = extractOps($r, $ex["ops"]);
+    $r = extractOps($r, $ex["ops"], []);
 
     $rl=[];
     foreach($r as $re) {
-        $title = extractOps($re, $ex["name"]);
-        $url = extractOps($re, $ex["link"]);
+        $title = extractOps($re, $ex["name"], []);
+        $url = extractOps($re, $ex["link"], []);
         if (substr($url, 0, 4)!="http") {
             $url = $pvd["baseUrl"].(substr($url, 0, 1)=="/" ? "" : "/").$url;
         }
@@ -654,7 +877,7 @@ function pvdSearchMangas($q, $pvdn) {
         if ($ex["thumb"]==null) {
             $thumb=null;
         } else {
-            $thumb = extractOps($re, $ex["thumb"]);
+            $thumb = extractOps($re, $ex["thumb"], []);
         }
 
         $rl[] = [
@@ -691,12 +914,12 @@ function pvdSearchNovels($q, $pvdn) {
 
     $ex = $pvd["search"]["extract"];
 
-    $r = extractOps($r, $ex["ops"]);
+    $r = extractOps($r, $ex["ops"], []);
 
     $rl=[];
     foreach($r as $re) {
-        $title = extractOps($re, $ex["name"]);
-        $url = extractOps($re, $ex["link"]);
+        $title = extractOps($re, $ex["name"], []);
+        $url = extractOps($re, $ex["link"], []);
         if (substr($url, 0, 4)!="http") {
             $url = $pvd["baseUrl"].(substr($url, 0, 1)=="/" ? "" : "/").$url;
         }
@@ -704,7 +927,7 @@ function pvdSearchNovels($q, $pvdn) {
         if ($ex["thumb"]==null) {
             $thumb=null;
         } else {
-            $thumb = extractOps($re, $ex["thumb"]);
+            $thumb = extractOps($re, $ex["thumb"], []);
         }
 
         $rl[] = [
@@ -771,6 +994,10 @@ function searchMangas($q, $n=3, $tl=500) {
     return($rl);
 }
 
+function is_assoc(array $arr): bool {
+    return array_keys($arr) !== range(0, count($arr) - 1);
+}
+
 function getProvider($url) {
     $ru = parse_url($url);
     $host = str_replace("www.", "", $ru["host"]);
@@ -818,12 +1045,14 @@ function getData($url, $pvd) {
     $r = extractOps($r, $xt["ops"]??null);
 
     $rl=[];
+    $exdt=["url"=>$url, "provider"=>$pvd];
     foreach($xt as $k=>$v) {
         if ($k=="ops") {
             continue;
         }
 
-        $rl[$k] = extractOps($r, $v);
+        $rl[$k] = extractOps($r, $v, $exdt);
+        $exdt[$k] = $rl[$k];
         //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
     }
     stoptime("data_extraction");
@@ -831,7 +1060,7 @@ function getData($url, $pvd) {
     return($rl);
 }
 
-function getId($url, $pvd) {
+function getDDD($url, $pvd) {
     $hd = [
         "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
         "Referer: ".$pvd["baseUrl"],
@@ -877,25 +1106,81 @@ function getChapters($url, $pvd) {
         "Referer: ".$pvd["baseUrl"],
     ];
 
-    $pl = $pvd["data"]["payload"];
+    $pl = $pvd["chapters"]["payload"];
     //$pl[$pvd["search"]["query_key"]] = $q;
 
-    starttime("data_request");
-    if ($pvd["cloudflare"]) {
-        [$r, $rh] = pfgc($url, $pvd["data"]["type"], $hd, $pl);
-    } else {
-        [$r, $rh] = fgc($url, $pvd["data"]["type"], $hd, $pl);
+    starttime("url_retrieval");
+    $rurl = $url;
+    if (array_key_exists("url", $pvd["chapters"])) {
+        $rurl = $pvd["chapters"]["url"];
+        if (is_array($rurl)) {
+            $rurl = extractOps("", $rurl, ["url"=>$url]);
+        }
     }
-    stoptime("data_request");
+    stoptime("url_retrieval");
+
+    starttime("chapters_request");
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($rurl, $pvd["chapters"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($rurl, $pvd["chapters"]["type"], $hd, $pl);
+    }
+    stoptime("chapters_request");
 
     if ($r===false) {
         return(false);
     }
 
-    $xt = $pvd["data"]["extract"];
+    $xt = $pvd["chapters"]["extract"];
 
-    starttime("data_extraction");
+    starttime("chapters_extraction");
     $r = extractOps($r, $xt["ops"]??null);
+    stoptime("chapters_extraction");
+
+    /*$rl=[];
+    foreach($xt as $k=>$v) {
+        if ($k=="ops") {
+            continue;
+        }
+
+        $rl[$k] = extractOps($r, $v);
+        //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
+    }*/
+    
+
+    return($r);
+}
+
+
+
+
+function getChapter($url, $pvd) {
+    $hd = [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0",
+        "Referer: ".$pvd["baseUrl"],
+    ];
+
+    $pl = $pvd["chapter"]["payload"];
+    //$pl[$pvd["search"]["query_key"]] = $q;
+
+    starttime("chapter_request");
+    if ($pvd["cloudflare"]) {
+        [$r, $rh] = pfgc($url, $pvd["chapter"]["type"], $hd, $pl);
+    } else {
+        [$r, $rh] = fgc($url, $pvd["chapter"]["type"], $hd, $pl);
+    }
+    stoptime("chapter_request");
+
+    if ($r===false) {
+        return(false);
+    }
+
+    $xt = $pvd["chapter"]["extract"];
+
+    starttime("images_extraction");
+    if (array_key_exists("ops", $xt)) {
+        $r = extractOps($r, $xt["ops"]??null);
+    }
 
     $rl=[];
     foreach($xt as $k=>$v) {
@@ -906,10 +1191,15 @@ function getChapters($url, $pvd) {
         $rl[$k] = extractOps($r, $v);
         //echo($k."=".(is_array($rl[$k]) ? json_encode($rl[$k]) : $rl[$k])."<br/><br/>");
     }
-    stoptime("data_extraction");
+    stoptime("images_extraction");
+    
 
     return($rl);
 }
+
+
+
+
 
 
 
@@ -983,6 +1273,41 @@ else if ($a=="chapters" && $rtype=="GET") {
 
     ok($chl);
 }
+
+
+
+
+else if ($a=="chapter" && $rtype=="GET") {
+    [$url] = mdtpi(["url"]);
+
+    [$pvdn, $type, $pvd] = getProvider($url);
+
+    if ($pvdn==null) {
+        err("unknown_provider", "No provider was found for this url");
+    }
+
+    $chl = getChapter($url, $pvd);
+
+    ok($chl);
+}
+
+
+
+
+else if ($a=="cfget" && $rtype="GET") {
+    [$url] = mdtpi(["url"]);
+
+    [$r, $rh] = pfgc($url, "GET", [
+        "Accept: 
+text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding: gzip, deflate, br, zstd",
+        "Referer: https://mangabuddy.com/",
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 OPR/118.0.0.0"
+    ]);
+
+    echo($r);
+}
+
 
 
 if (!$dsp || true) {

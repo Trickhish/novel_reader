@@ -2,7 +2,7 @@
     "mangas": {
 
         "mangabuddy.com": {
-            "enabled": true,
+            "enabled": false,
             "baseUrl": "https://mangabuddy.com",
             "cloudflare": false,
             "search": {
@@ -36,6 +36,11 @@
                     "name": [
                         ["cutbtw", "<div class=\"name box\">", "</div>"],
                         ["cutbtw", "<h1>", "</h1"]
+                    ],
+                    "id": [
+                        ["cutbtw", "var bookId = ", ";"],
+                        ["lcstore", "bookid"],
+                        ["dbset", ["create"], "webtoons", {"url": "$[url]"}, {"url": "$[url]", "bookid": "$[CURRENT]"}]
                     ],
                     "authors": [
                         ["cutbtw", "<p><strong>Authors :</strong>", "</p>"],
@@ -77,15 +82,92 @@
                     ]
                 }
             },
-            "id": {
+            "chapters": {
                 "type": "GET",
                 "payload": {},
-                
+                "url": [
+                    ["concat",
+                        "https://mangabuddy.com/api/manga/",
+                        [
+                            ["fallback", [["dbget", [], "webtoons", {"url": "$[url]"}, "bookid"]], [["requestop", "manga", "mangabuddy.com", ["data"], "id", {"url": [["lcget", "url"]]}]]],
+                            ["lcstore", "bookid"]
+                        ],
+                        "/chapters?source=detail"
+                    ]
+                ],
+                "extract": {
+                    "ops": [
+                        ["split", "<li id"],
+                        ["subarray", 1],
+                        ["dict", {
+                            "url": [
+                                ["cutbtw", "<a href=\"", "\""],
+                                ["appendBase", "https://mangabuddy.com"]
+                            ],
+                            "name": [
+                                ["cutbtw", "<strong class=\"chapter-title\">", "<"]
+                            ],
+                            "number": [
+                                ["cutbtw", "<strong class=\"chapter-title\">Chapter ", "<"],
+                                ["cutbtw", ":"]
+                            ],
+                            "update": [
+                                ["cutbtw", "<time class=\"chapter-update\">", "</time>"],
+                                ["date_to_ts"]
+                            ],
+                            "isnew": [
+                                ["contains", "span class=\"chapter-new\""]
+                            ]
+                        }]
+                    ]
+                }
+            },
+            "chapter": {
+                "type": "GET",
+                "payload": {},
+                "extract": {
+                    "images": [
+                        ["cutbtw", "var chapImages = '", "'"],
+                        ["split", ","]
+                    ]
+                }
+
+            }
+        },
+
+        "rizzfables.com": {
+            "enabled": false,
+            "baseUrl": "https://rizzfables.com",
+            "cloudflare": true,
+            "search": {
+                "endpoint": "/Index/live_search",
+                "type": "POST",
+                "payload": {
+                    "search_value": "$query"
+                },
+                "query_key": "search_value",
+                "extract": {
+                    "ops": [
+                        ["json_decode"]
+                    ],
+                    "name": [
+                        ["dictSelect", "title"]
+                    ],
+                    "link": [
+                        ["dictSelect", "url"]
+                    ],
+                    "thumb": [
+                        ["concat", "https://rizzfables.com/assets/images/", [["dictSelect", "image_url"]]]
+                    ],
+                    "desc": [
+                        ["dictSelect", "long_description"]
+                    ]
+                }
             }
         },
 
         "whalemanga.com": {
-            "enabled": true,
+            "enabled": false,
             "baseUrl": "https://whalemanga.com",
             "cloudflare": false,
             "search": {
@@ -109,6 +191,40 @@
                     ],
                     "thumb": null,
                     "desc": null
+                }
+            },
+            "data": {
+                "type": "GET",
+                "payload": {},
+                "extract": {
+                    "name": [
+                        ["cutbtw", "<meta property=\"og:title\" content=\"", "\""]
+                    ],
+                    "id": [
+                        
+                    ],
+                    "authors": [
+                        
+                    ],
+                    "finished": [
+                        
+                    ],
+                    "chapters_nb": [
+                        ["cutbtw", "<p><strong>Chapters: </strong>", "</p>"],
+                        ["cutbtw", "<span>", "</span>"]
+                    ],
+                    "last_update": [
+                        
+                    ],
+                    "tags": [
+                        
+                    ],
+                    "desc": [
+                        
+                    ],
+                    "rating": [
+                        
+                    ]
                 }
             }
         },
