@@ -106,11 +106,13 @@ window.addEventListener('DOMContentLoaded', () => {
                     if (e.title==null) {
                         continue;
                     }
+
+                    // ${e.thumb}
                     
                     var ce = document.createElement("div");
                     ce.className = "search_result "+e.type+(bkmd ? " marked" : "");
                     ce.innerHTML = `
-                        <img class="thumbnail" onerror="this.src='/res/image_placeholder.jpg';" src="${e.thumb}" />
+                        <img class="thumbnail" onerror="this.src='/res/image_placeholder.jpg';" src="/api/cover?id=${e.id}" />
                         <h2>${e.title}</h2>
                         <img class="bookmark_btn${bkmd ? ' marked' : ''}" src="res/bookmarkws.png" />
                     `;

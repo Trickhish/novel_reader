@@ -21,6 +21,44 @@ if (empty($_GET["dbg"])) {
 }
 
 
+$env = [];
+
+function loadEnv() {
+    global $env;
+
+    if (file_exists(__DIR__ . "/.env")) {
+        $lines = file(__DIR__ . "/.env");
+        foreach ($lines as $line) {
+            if (strpos($line, "#") === 0) {
+                continue;
+            }
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+            list($key, $value) = explode("=", $line, 2);
+            $env[$key] = trim($value);
+        }
+    }
+}
+
+function writeEnv($sarr) {
+    global $env;
+
+    loadEnv();
+
+    foreach ($sarr as $key => $value) {
+        $env[$key] = $value;
+    }
+
+    $lines = [];
+    foreach ($env as $key => $value) {
+        $lines[] = "$key=$value";
+    }
+    file_put_contents(__DIR__ . "/.env", implode("\n", $lines));
+}
+
+loadEnv();
 
 function starttime($etn) {
     global $execution_time;
@@ -1197,9 +1235,159 @@ function getChapter($url, $pvd) {
     return($rl);
 }
 
+function refreshToken($tk) {
+    global $env;
 
+    if ($tk==null) {
+        $tk=$env["MANGADEX_REFRESH_TOKEN"];
+    }
 
+    [$r, $rh] = fgc("https://auth.mangadex.org/realms/mangadex/protocol/openid-connect/token", "POST",
+    [
+        "Content-Type: application/x-www-form-urlencoded",
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ], http_build_query(array(
+        "grant_type"=>"refresh_token",
+        "refresh_token"=> $tk,
+        "client_id"=> $env["MANGADEX_CLIENT_ID"],
+        "client_secret"=> $env["MANGADEX_CLIENT_SECRET"],
+        "scope" => "offline_access"
+    )));
 
+    $r = json_decode($r, true);
+
+    if (array_key_exists("access_token", $r)) {
+        writeEnv([
+            "MANGADEX_TOKEN"=> $r["access_token"],
+            "MANGADEX_REFRESH_TOKEN"=> $r["refresh_token"]
+        ]);
+
+        return($r["access_token"]);
+    } else {
+        err("auth_failed", "Failed to get a token");
+    }
+}
+
+function checkToken($tk=null) {
+    global $env;
+
+    if ($tk==null) {
+        $tk=$env["MANGADEX_TOKEN"];
+    }
+
+    [$r, $rh] = fgc("https://api.mangadex.org/auth/check", "GET", [
+        "Authorization: Bearer $tk",
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ]);
+
+    $r = json_decode($r, true);
+
+    return($r["result"]=="ok");
+}
+
+function getToken() {
+    global $env;
+
+    if (array_key_exists("MANGADEX_TOKEN", $env)) {
+        if (checkToken($env["MANGADEX_TOKEN"])) {
+            return($env["MANGADEX_TOKEN"]);
+        } else if (array_key_exists("MANGADEX_REFRESH_TOKEN", $env)) {
+            $tk = refreshToken($env["MANGADEX_REFRESH_TOKEN"]);
+
+            if ($tk != null) {
+                writeEnv([
+                    "MANGADEX_TOKEN"=> $tk
+                ]);
+
+                return($tk);
+            }
+        }
+    }
+
+    [$r, $rh] = fgc("https://auth.mangadex.org/realms/mangadex/protocol/openid-connect/token", "POST",
+    [
+        "Content-Type: application/x-www-form-urlencoded",
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ], http_build_query(array(
+        "grant_type"=>"password",
+        "username"=> $env["MANGADEX_USERNAME"],
+        "password"=> $env["MANGADEX_PASSWORD"],
+        "client_id"=> $env["MANGADEX_CLIENT_ID"],
+        "client_secret"=> $env["MANGADEX_CLIENT_SECRET"],
+        "scope" => "offline_access"
+    )));
+
+    $r = json_decode($r, true);
+
+    if (array_key_exists("access_token", $r)) {
+        writeEnv([
+            "MANGADEX_TOKEN"=> $r["access_token"],
+            "MANGADEX_REFRESH_TOKEN"=> $r["refresh_token"]
+        ]);
+
+        return($r["access_token"]);
+    } else {
+        err("auth_failed", "Failed to get a token");
+    }
+}
+
+function mdSearch($q, $lm=5) {
+    global $env;
+    $tk = getToken();
+
+    [$r, $rh] = fgc("https://api.mangadex.org/manga", "GET", [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ], [
+        "title"=> $q,
+        "includes[]"=> "manga",
+        "limit"=> $lm
+    ]);
+
+    $r = json_decode($r, true);
+
+    if ($r["result"] != "ok") {
+        err("request_failed", "The request failed");
+    }
+
+    return(array_map(function ($e) {
+        return([
+            "title"=> $e["attributes"]["title"]["en"] ?? array_values($e["attributes"]["title"])[0],
+            "type"=> "manga",
+            "desc"=> $e["attributes"]["description"]["en"] ?? array_values($e["attributes"]["description"])[0],
+            "thumb"=> mdMangaCovers($e["id"], 1)[0]["url"] ?? "",
+            "id"=> $e["id"]
+        ]);
+    }, $r["data"], ));
+}
+
+function mdMangaCovers($mid, $lm=1) {
+    global $env;
+    $tk = getToken();
+
+    [$r, $rh] = fgc("https://api.mangadex.org/cover", "GET", [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ], [
+        "limit"=> $lm,
+        "manga[]"=> $mid,
+        "order[createdAt]"=> "asc",
+        "order[updatedAt]"=> "asc",
+        "includes[]"=> "manga"
+    ]);
+
+    $r = json_decode($r, true);
+
+    if ($r["result"] != "ok") {
+        err("request_failed", "The request failed");
+    }
+
+    return(array_map(function($e) use ($mid) {
+        return([
+            "id"=> $e["id"],
+            "file"=> $e["attributes"]["fileName"],
+            "url"=> "https://uploads.mangadex.org/covers/$mid/".$e["attributes"]["fileName"].".256.jpg"
+        ]);
+    }, $r["data"]));
+}
 
 
 
@@ -1208,7 +1396,11 @@ function getChapter($url, $pvd) {
 if ($a=="search" && $rtype=="GET") {
     [$q] = mdtpi(["q"]);
 
-    starttime("novels_search");
+    $rl = mdSearch($q);
+
+    ok($rl);
+
+    /*starttime("novels_search");
     $novels = searchNovels($q, 1, 500);
     stoptime("novels_search");
 
@@ -1239,7 +1431,52 @@ if ($a=="search" && $rtype=="GET") {
 
     stoptime(etn: "sorting");
 
+    ok($rl);*/
+}
+
+
+
+else if ($a=="covers" && $rtype=="GET") {
+    [$id] = mdtpi(["id"]);
+
+    $lm = $_GET["limit"] ?? 1;
+
+    $rl = mdMangaCovers($id, $lm);
+
     ok($rl);
+}
+
+
+
+else if ($a=="cover" && $rtype=="GET") {
+    [$id] = mdtpi(["id"]);
+    global $dbg;
+
+    disp();
+
+    $rl = mdMangaCovers($id, 1);
+    if (count($rl)==0) {
+        header("Content-Type: image/jpeg");
+        header("Cache-Control: public, max-age=86400");
+        readfile("/var/www/read/res/image_placeholder.jpg");
+    } else {
+        $url = $rl[0]["url"];
+    }
+
+    $mimeType = get_headers($url, 1)["Content-Type"] ?? "image/jpeg";
+
+    if (!$dbg) {
+        header("Content-Type: $mimeType");
+        header("Cache-Control: public, max-age=86400");
+        header("Image-URL: $url");
+    }
+    
+
+    [$idt, $rh] = fgc($url, "GET", [
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+    ]);
+
+    echo($idt);
 }
 
 
@@ -1310,7 +1547,15 @@ text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,imag
 
 
 
-if (!$dsp || true) {
+
+else if ($a=="authtest" && $rtype=="GET") {
+    getToken();
+    ok();
+}
+
+
+
+if (!$dsp) {
     err("unknown_endpoint", "The '".$a."' endpoint is unknown", 501, array(
         "request_type"=> $rtype 
     ));
