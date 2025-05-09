@@ -1,6 +1,87 @@
 {
     "mangas": {
 
+        "mangadex.org": {
+            "enabled": true,
+            "baseUrl": "https://mangadex.org",
+            "cloudflare": false,
+            "search": {
+                "endpoint": "https://api.mangadex.org/manga",
+                "type": "GET",
+                "payload": {
+                    "title": "$query",
+                    "includes[]": "manga",
+                    "includes[]": "cover_art",
+                    "limit": 5
+                },
+                "headers": [
+                    "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/"
+                ],
+                "query_key": "title",
+                "extract": {
+                    "ops": [
+                        ["json_decode"],
+                        ["dictSelect", "data"]
+                    ],
+                    "name": [
+                        ["dictSelect", "attributes"],
+                        ["dictSelect", "title"],
+                        ["fallback", [
+                            ["dictSelect", "en"]
+                        ], [
+                            ["arraySelect", 0]
+                        ]]
+                    ],
+                    "desc": [
+                        ["dictSelect", "attributes"],
+                        ["dictSelect", "description"],
+                        ["fallback", [
+                            ["dictSelect", "en"]
+                        ], [
+                            ["arraySelect", 0]
+                        ]]
+                    ],
+                    "id": [
+                        ["dictSelect", "id"],
+                        ["lcstore", "mdid"]
+                    ],
+                    "link": [
+                        ["concat",
+                            "https://mangadex.org/title/",
+                            [
+                                ["dictSelect", "id"]
+                            ]
+                        ]
+                    ],
+                    "_thumb": [
+                        ["lcstoreops", "mdid", [
+                            ["dictSelect", "id"]
+                        ]],
+
+                        ["dictSelect", "relationships"],
+                        ["filter", [
+                            ["equals", "cover_art", [
+                                ["dictSelect", "type"]
+                            ]]
+                        ]],
+                        ["arraySelect", 0],
+                        ["concat", 
+                            "https://uploads.mangadex.org/covers/",
+                            [
+                                ["lcget", "mdid"]
+                            ],
+                            "/",
+                            [
+                                ["dictSelect", "attributes"],
+                                ["dictSelect", "fileName"]
+                            ],
+                            ".256.jpg"
+                        ]
+                    ]
+                }
+            }
+        },
+
         "mangabuddy.com": {
             "enabled": false,
             "baseUrl": "https://mangabuddy.com",
@@ -230,7 +311,7 @@
         },
 
         "reaperscans.com": {
-            "enabled": true,
+            "enabled": false,
             "baseUrl": "https://api.reaperscans.com",
             "cloudflare": false,
             "search": {
@@ -295,6 +376,13 @@
         }
     },
 
+
+
+
+
+
+
+
     "novels": {
 
         "webnovelpub.co": {
@@ -318,11 +406,17 @@
                     ],
                     "link": [
                         ["cutbtw", "href=\\\"", "\\\""],
-                        ["decode_slashes"]
+                        ["decode_slashes"],
+                        ["lcstore", "link"]
                     ],
                     "thumb": [
                         ["cutbtw", "img src=\\\"", "\\\""],
                         ["decode_slashes"]
+                    ],
+                    "id": [
+                        ["lcget", "link"],
+                        ["split", "/"],
+                        ["arraySelect", -1]
                     ]
                 }
             }

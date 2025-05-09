@@ -175,25 +175,35 @@ nav .mode_bt.active {
 }
 
 .search_result .bookmark_btn {
-    height: 43px;
+    height: 30px;
     /* width: 30px; */
     position: absolute;
     right: 0;
-    right: -3px;
-    top: -7px;
+    right: 4px;
+    top: 4px;
     /* backdrop-filter: blur(2px) brightness(1.1); */
-    /* background-color: #ffffff1a;*/
+    /* background-color: #ffffff1a; */
+    transition: all .2sease-in-out;
+    background-color: #00000078;
+    border-radius: 10px;
+    backdrop-filter: blur(2px);
+    padding: 2px;
     transition: all .2s ease-in-out;
+
+    fill: transparent;
+    stroke: white;
 }
 .search_result .bookmark_btn:hover {
-    top: -4px;
+    border-radius: 13px;
+    fill: white;
 }
 .search_result .bookmark_btn.marked {
-    --lc_clr: #ffc800;
-    background-image: linear-gradient(var(--lc_clr), var(--lc_clr));
-    background-size: 50px 20px;
-    background-repeat: no-repeat;
-    background-position: 6px 7px;
+    fill: white;
+    stroke:none;
+}
+.search_result .bookmark_btn.marked:hover {
+    fill: transparent;
+    stroke: white;
 }
 
 .search_result h2 {
@@ -234,4 +244,41 @@ nav .mode_bt.active {
 
 .search_result.novel::after {
     background-image: url(/res/book_icon.png);
+}
+
+
+@keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    25% {
+      transform: rotate(60deg);
+    }
+    50% {
+      transform: rotate(180deg);
+    }
+    75% {
+      transform: rotate(300deg); /* 270 */
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+}
+
+#loading_circle {
+    translate: -50% -50%;
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: 9rem;
+    height: 7rem;
+    width: 7rem;
+    background-color: transparent;
+    border: solid 2px transparent;
+    border-top: solid 2px gray;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+#loading_circle.active {
+    display:block;
 }
