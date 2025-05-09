@@ -193,6 +193,8 @@ else if ($a=="bookmark" && $rtype=="GET") {
     redisMsg("fetchData", [
         "url"=> $url
     ]);
+
+    ok();
 }
 
 

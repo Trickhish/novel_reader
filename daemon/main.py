@@ -8,6 +8,8 @@ import os
 import sys
 import argparse
 
+from src import read
+
 class ChangeHandler(FileSystemEventHandler):
     def __init__(self, observer):
         self.observer = observer
@@ -49,7 +51,8 @@ if __name__ == "__main__":
                 case "test":
                     print(f"[TEST]: {dt["message"]}")
                 case "fetchData":
-                    pass
+                    print(f"[DataFetch]: {dt["url"]}")
+                    read.fetchData(dt["url"])
                 case _:
                     print(f"Unknown action '{a}'\n     {dt}")
         except KeyboardInterrupt:
